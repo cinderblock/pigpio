@@ -1,6 +1,6 @@
 {
-  "name": "pigpio",
-  "version": "3.3.1",
+  "name": "pigpio2",
+  "version": "0.0.1",
   "description": "Fast GPIO, PWM, servo control, state change notification, and interrupt handling on the Raspberry Pi",
   "main": "pigpio.js",
   "types": "pigpio.d.ts",
@@ -11,6 +11,7 @@
   "scripts": {
     "lint": "jshint *.js example/*.js test/*.js test/*/*.js",
     "test": "cd test && ./run-tests && cd ..",
+    "pigpio.h": "wget -d dev/ https://raw.githubusercontent.com/joan2937/pigpio/master/pigpio.h",
     "install": "node-gyp rebuild"
   },
   "repository": {
@@ -22,10 +23,12 @@
   },
   "dependencies": {
     "bindings": "^1.5.0",
-    "nan": "^2.14.2"
+    "node-addon-api": "^4.2.0"
   },
   "devDependencies": {
-    "jshint": "^2.12.0"
+    "jshint": "^2.12.0",
+    "node-gyp": "^8.2.0",
+    "node-wget": "^0.4.3"
   },
   "keywords": [
     "gpio",

@@ -1,6 +1,6 @@
 #include <errno.h>
 #include <pigpio.h>
-#include <nan.h>
+#include <napi.h>
 
 static void gpioISREventLoopHandler(uv_async_t* handle);
 static void gpioAlertEventLoopHandler(uv_async_t* handle);
@@ -16,11 +16,11 @@ static void gpioAlertEventLoopHandler(uv_async_t* handle);
 class GpioCallback_t {
 public:
   GpioCallback_t() : callback_(0), async_resource_(0) {
-    Nan::HandleScope scope;
+    Napi::HandleScope scope(env);
   }
 
   virtual ~GpioCallback_t() {
-    Nan::HandleScope scope;
+    Napi::HandleScope scope(env);
 
     if (callback_) {
       uv_unref((uv_handle_t *) &async_);
@@ -41,7 +41,7 @@ public:
     uv_async_send(&async_);
   }
 
-  void SetCallback(Nan::Callback *callback) {
+  void SetCallback(Napi::FunctionReference *callback) {
     if (callback_) {
       uv_unref((uv_handle_t *) &async_);
       delete callback_;
@@ -55,16 +55,16 @@ public:
     async_resource_ = 0;
 
     if (callback_) {
-      async_resource_ = new Nan::AsyncResource("pigpio:eventHandler");
+      async_resource_ = new Napi::AsyncResource("pigpio:eventHandler");
       uv_ref((uv_handle_t *) &async_);
     }
   }
 
-  Nan::Callback *Callback() {
+  Napi::FunctionReference *Callback() {
     return callback_;
   }
 
-  Nan::AsyncResource *Resource() {
+  Napi::AsyncResource *Resource() {
     return async_resource_;
   }
 
@@ -72,8 +72,8 @@ protected:
   uv_async_t async_;
 
 private:
-  Nan::Callback *callback_;
-  Nan::AsyncResource *async_resource_;
+  Napi::FunctionReference *callback_;
+  Napi::AsyncResource *async_resource_;
 };
 
 
@@ -112,53 +112,56 @@ void ThrowPigpioError(int err, const char *pigpiocall) {
 
   snprintf(buf, sizeof(buf), "pigpio error %d in %s", err, pigpiocall);
 
-  Nan::ThrowError(buf);
+  Napi::Error::New(env, buf).ThrowAsJavaScriptException();
+
 }
 
 
-NAN_METHOD(gpioHardwareRevision) {
-  info.GetReturnValue().Set(gpioHardwareRevision());
+Napi::Value gpioHardwareRevision(const Napi::CallbackInfo& info) {
+  return gpioHardwareRevision();
 }
 
 
-NAN_METHOD(gpioCfgInterfaces) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioCfgInterfaces", ""));
+Napi::Value gpioCfgInterfaces(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioCfgInterfaces", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned ifFlags = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned ifFlags = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioCfgInterfaces(ifFlags);
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioCfgInterfaces");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioInitialise) {
+Napi::Value gpioInitialise(const Napi::CallbackInfo& info) {
   int rc = gpioInitialise();
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioInitialise");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioTerminate) {
+Napi::Value gpioTerminate(const Napi::CallbackInfo& info) {
   gpioTerminate();
 }
 
 
-NAN_METHOD(gpioSetMode) {
-  if (info.Length() < 2 || !info[0]->IsUint32() || !info[1]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioSetMode", ""));
+Napi::Value gpioSetMode(const Napi::CallbackInfo& info) {
+  if (info.Length() < 2 || !info[0].IsUint32() || !info[1].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioSetMode", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned gpio = Nan::To<uint32_t>(info[0]).FromJust();
-  unsigned mode = Nan::To<uint32_t>(info[1]).FromJust();
+  unsigned gpio = info[0].As<Napi::Number>().Uint32Value();
+  unsigned mode = info[1].As<Napi::Number>().Uint32Value();
 
   int rc = gpioSetMode(gpio, mode);
   if (rc < 0) {
@@ -167,29 +170,31 @@ NAN_METHOD(gpioSetMode) {
 }
 
 
-NAN_METHOD(gpioGetMode) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioGetMode", ""));
+Napi::Value gpioGetMode(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioGetMode", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned gpio = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned gpio = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioGetMode(gpio);
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioGetMode");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioSetPullUpDown) {
-  if (info.Length() < 2 || !info[0]->IsUint32() || !info[1]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioSetPullUpDown", ""));
+Napi::Value gpioSetPullUpDown(const Napi::CallbackInfo& info) {
+  if (info.Length() < 2 || !info[0].IsUint32() || !info[1].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioSetPullUpDown", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned gpio = Nan::To<uint32_t>(info[0]).FromJust();
-  unsigned pud = Nan::To<uint32_t>(info[1]).FromJust();
+  unsigned gpio = info[0].As<Napi::Number>().Uint32Value();
+  unsigned pud = info[1].As<Napi::Number>().Uint32Value();
 
   int rc = gpioSetPullUpDown(gpio, pud);
   if (rc < 0) {
@@ -198,29 +203,31 @@ NAN_METHOD(gpioSetPullUpDown) {
 }
 
 
-NAN_METHOD(gpioRead) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioRead", ""));
+Napi::Value gpioRead(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioRead", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned gpio = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned gpio = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioRead(gpio);
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioRead");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioWrite) {
-  if (info.Length() < 2 || !info[0]->IsUint32() || !info[1]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioSetPullUpDown", ""));
+Napi::Value gpioWrite(const Napi::CallbackInfo& info) {
+  if (info.Length() < 2 || !info[0].IsUint32() || !info[1].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioSetPullUpDown", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned gpio = Nan::To<uint32_t>(info[0]).FromJust();
-  unsigned level = Nan::To<uint32_t>(info[1]).FromJust();
+  unsigned gpio = info[0].As<Napi::Number>().Uint32Value();
+  unsigned level = info[1].As<Napi::Number>().Uint32Value();
 
   int rc = gpioWrite(gpio, level);
   if (rc < 0) {
@@ -229,14 +236,15 @@ NAN_METHOD(gpioWrite) {
 }
 
 
-NAN_METHOD(gpioTrigger) {
-  if (info.Length() < 3 || !info[0]->IsUint32() || !info[1]->IsUint32() || !info[2]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioTrigger", ""));
+Napi::Value gpioTrigger(const Napi::CallbackInfo& info) {
+  if (info.Length() < 3 || !info[0].IsUint32() || !info[1].IsUint32() || !info[2].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioTrigger", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned gpio = Nan::To<uint32_t>(info[0]).FromJust();
-  unsigned pulseLen = Nan::To<uint32_t>(info[1]).FromJust();
-  unsigned level = Nan::To<uint32_t>(info[2]).FromJust();
+  unsigned gpio = info[0].As<Napi::Number>().Uint32Value();
+  unsigned pulseLen = info[1].As<Napi::Number>().Uint32Value();
+  unsigned level = info[2].As<Napi::Number>().Uint32Value();
 
   int rc = gpioTrigger(gpio, pulseLen, level);
   if (rc < 0) {
@@ -245,19 +253,20 @@ NAN_METHOD(gpioTrigger) {
 }
 
 
-NAN_METHOD(gpioTick) {
+Napi::Value gpioTick(const Napi::CallbackInfo& info) {
     uint32_t rc = gpioTick();
-    info.GetReturnValue().Set(rc);
+    return rc;
 }
 
 
-NAN_METHOD(gpioPWM) {
-  if (info.Length() < 2 || !info[0]->IsUint32() || !info[1]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioPWM", ""));
+Napi::Value gpioPWM(const Napi::CallbackInfo& info) {
+  if (info.Length() < 2 || !info[0].IsUint32() || !info[1].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioPWM", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned user_gpio = Nan::To<uint32_t>(info[0]).FromJust();
-  unsigned dutycycle = Nan::To<uint32_t>(info[1]).FromJust();
+  unsigned user_gpio = info[0].As<Napi::Number>().Uint32Value();
+  unsigned dutycycle = info[1].As<Napi::Number>().Uint32Value();
 
   int rc = gpioPWM(user_gpio, dutycycle);
   if (rc < 0) {
@@ -266,17 +275,18 @@ NAN_METHOD(gpioPWM) {
 }
 
 
-NAN_METHOD(gpioHardwarePWM) {
+Napi::Value gpioHardwarePWM(const Napi::CallbackInfo& info) {
   if (info.Length() < 3 ||
-      !info[0]->IsUint32() ||
-      !info[1]->IsUint32() ||
-      !info[2]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioHardwarePWM", ""));
+      !info[0].IsUint32() ||
+      !info[1].IsUint32() ||
+      !info[2].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioHardwarePWM", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned gpio = Nan::To<uint32_t>(info[0]).FromJust();
-  unsigned frequency = Nan::To<uint32_t>(info[1]).FromJust();
-  unsigned dutycycle = Nan::To<uint32_t>(info[2]).FromJust();
+  unsigned gpio = info[0].As<Napi::Number>().Uint32Value();
+  unsigned frequency = info[1].As<Napi::Number>().Uint32Value();
+  unsigned dutycycle = info[2].As<Napi::Number>().Uint32Value();
 
   int rc = gpioHardwarePWM(gpio, frequency, dutycycle);
   if (rc < 0) {
@@ -285,29 +295,31 @@ NAN_METHOD(gpioHardwarePWM) {
 }
 
 
-NAN_METHOD(gpioGetPWMdutycycle) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioGetPWMdutycycle", ""));
+Napi::Value gpioGetPWMdutycycle(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioGetPWMdutycycle", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned user_gpio = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned user_gpio = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioGetPWMdutycycle(user_gpio);
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioGetPWMdutycycle");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioSetPWMrange) {
-  if (info.Length() < 2 || !info[0]->IsUint32() || !info[1]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioSetPWMrange", ""));
+Napi::Value gpioSetPWMrange(const Napi::CallbackInfo& info) {
+  if (info.Length() < 2 || !info[0].IsUint32() || !info[1].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioSetPWMrange", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned user_gpio = Nan::To<uint32_t>(info[0]).FromJust();
-  unsigned range = Nan::To<uint32_t>(info[1]).FromJust();
+  unsigned user_gpio = info[0].As<Napi::Number>().Uint32Value();
+  unsigned range = info[1].As<Napi::Number>().Uint32Value();
 
   int rc = gpioSetPWMrange(user_gpio, range);
   if (rc < 0) {
@@ -316,45 +328,48 @@ NAN_METHOD(gpioSetPWMrange) {
 }
 
 
-NAN_METHOD(gpioGetPWMrange) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioGetPWMrange", ""));
+Napi::Value gpioGetPWMrange(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioGetPWMrange", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned user_gpio = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned user_gpio = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioGetPWMrange(user_gpio);
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioGetPWMrange");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioGetPWMrealRange) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioGetPWMrealRange", ""));
+Napi::Value gpioGetPWMrealRange(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioGetPWMrealRange", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned user_gpio = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned user_gpio = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioGetPWMrealRange(user_gpio);
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioGetPWMrealRange");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioSetPWMfrequency) {
-  if (info.Length() < 2 || !info[0]->IsUint32() || !info[1]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioSetPWMfrequency", ""));
+Napi::Value gpioSetPWMfrequency(const Napi::CallbackInfo& info) {
+  if (info.Length() < 2 || !info[0].IsUint32() || !info[1].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioSetPWMfrequency", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned user_gpio = Nan::To<uint32_t>(info[0]).FromJust();
-  unsigned frequency = Nan::To<uint32_t>(info[1]).FromJust();
+  unsigned user_gpio = info[0].As<Napi::Number>().Uint32Value();
+  unsigned frequency = info[1].As<Napi::Number>().Uint32Value();
 
   int rc = gpioSetPWMfrequency(user_gpio, frequency);
   if (rc < 0) {
@@ -363,29 +378,31 @@ NAN_METHOD(gpioSetPWMfrequency) {
 }
 
 
-NAN_METHOD(gpioGetPWMfrequency) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioGetPWMfrequency", ""));
+Napi::Value gpioGetPWMfrequency(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioGetPWMfrequency", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned user_gpio = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned user_gpio = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioGetPWMfrequency(user_gpio);
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioGetPWMfrequency");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioServo) {
-  if (info.Length() < 2 || !info[0]->IsUint32() || !info[1]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioServo", ""));
+Napi::Value gpioServo(const Napi::CallbackInfo& info) {
+  if (info.Length() < 2 || !info[0].IsUint32() || !info[1].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioServo", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned user_gpio = Nan::To<uint32_t>(info[0]).FromJust();
-  unsigned pulsewidth = Nan::To<uint32_t>(info[1]).FromJust();
+  unsigned user_gpio = info[0].As<Napi::Number>().Uint32Value();
+  unsigned pulsewidth = info[1].As<Napi::Number>().Uint32Value();
 
   int rc = gpioServo(user_gpio, pulsewidth);
   if (rc < 0) {
@@ -394,19 +411,20 @@ NAN_METHOD(gpioServo) {
 }
 
 
-NAN_METHOD(gpioGetServoPulsewidth) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioGetServoPulsewidth", ""));
+Napi::Value gpioGetServoPulsewidth(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioGetServoPulsewidth", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned user_gpio = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned user_gpio = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioGetServoPulsewidth(user_gpio);
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioGetServoPulsewidth");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
@@ -424,13 +442,13 @@ static void gpioISRHandler(int gpio, int level, uint32_t tick) {
 
 // gpioISREventLoopHandler is executed in the event loop thread.
 static void gpioISREventLoopHandler(uv_async_t* handle) {
-  Nan::HandleScope scope;
+  Napi::HandleScope scope(env);
 
   if (gpioISR_g[gpio_g].Callback()) {
-    v8::Local<v8::Value> args[3] = {
-      Nan::New<v8::Integer>(gpio_g),
-      Nan::New<v8::Integer>(level_g),
-      Nan::New<v8::Integer>(tick_g)
+    Napi::Value args[3] = {
+      Napi::Number::New(env, gpio_g),
+      Napi::Number::New(env, level_g),
+      Napi::Number::New(env, tick_g)
     };
 
     gpioISR_g[gpio_g].Callback()->Call(
@@ -444,29 +462,31 @@ static void gpioISREventLoopHandler(uv_async_t* handle) {
 }
 
 
-static NAN_METHOD(gpioSetISRFunc) {
+static Napi::Value gpioSetISRFunc(const Napi::CallbackInfo& info) {
   if (info.Length() < 3 ||
-      !info[0]->IsUint32() ||
-      !info[1]->IsUint32() ||
-      !info[2]->IsInt32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioSetISRFunc", ""));
+      !info[0].IsUint32() ||
+      !info[1].IsUint32() ||
+      !info[2].IsNumber()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioSetISRFunc", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
   if (info.Length() >= 4 &&
-      !info[3]->IsFunction() &&
-      !info[3]->IsNull() &&
-      !info[3]->IsUndefined()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioSetISRFunc", ""));
+      !info[3].IsFunction() &&
+      !info[3].IsNull() &&
+      !info[3].IsUndefined()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioSetISRFunc", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned user_gpio = Nan::To<uint32_t>(info[0]).FromJust();
-  unsigned edge = Nan::To<uint32_t>(info[1]).FromJust();
-  int timeout = Nan::To<int32_t>(info[2]).FromJust();
-  Nan::Callback *callback = 0;
+  unsigned user_gpio = info[0].As<Napi::Number>().Uint32Value();
+  unsigned edge = info[1].As<Napi::Number>().Uint32Value();
+  int timeout = info[2].As<Napi::Number>().Int32Value();
+  Napi::FunctionReference *callback = 0;
   gpioISRFunc_t isrFunc = 0;
 
-  if (info.Length() >= 4 && info[3]->IsFunction()) {
-    callback = new Nan::Callback(info[3].As<v8::Function>());
+  if (info.Length() >= 4 && info[3].IsFunction()) {
+    callback = new Napi::FunctionReference(info[3].As<Napi::Function>());
     isrFunc = gpioISRHandler;
   }
 
@@ -493,13 +513,13 @@ static void gpioAlertHandler(int gpio, int level, uint32_t tick) {
 
 // gpioAlertEventLoopHandler is executed in the event loop thread.
 static void gpioAlertEventLoopHandler(uv_async_t* handle) {
-  Nan::HandleScope scope;
+  Napi::HandleScope scope(env);
 
   if (gpioAlert_g[gpio_g].Callback()) {
-    v8::Local<v8::Value> args[3] = {
-      Nan::New<v8::Integer>(gpio_g),
-      Nan::New<v8::Integer>(level_g),
-      Nan::New<v8::Integer>(tick_g)
+    Napi::Value args[3] = {
+      Napi::Number::New(env, gpio_g),
+      Napi::Number::New(env, level_g),
+      Napi::Number::New(env, tick_g)
     };
 
     gpioAlert_g[gpio_g].Callback()->Call(
@@ -513,25 +533,27 @@ static void gpioAlertEventLoopHandler(uv_async_t* handle) {
 }
 
 
-static NAN_METHOD(gpioSetAlertFunc) {
+static Napi::Value gpioSetAlertFunc(const Napi::CallbackInfo& info) {
   if (info.Length() < 1 ||
-      !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioSetAlertFunc"));
+      !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioSetAlertFunc")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
   if (info.Length() >= 2 &&
-      !info[1]->IsFunction() &&
-      !info[1]->IsNull() &&
-      !info[1]->IsUndefined()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioSetAlertFunc"));
+      !info[1].IsFunction() &&
+      !info[1].IsNull() &&
+      !info[1].IsUndefined()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioSetAlertFunc")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned user_gpio = Nan::To<uint32_t>(info[0]).FromJust();
-  Nan::Callback *callback = 0;
+  unsigned user_gpio = info[0].As<Napi::Number>().Uint32Value();
+  Napi::FunctionReference *callback = 0;
   gpioAlertFunc_t alertFunc = 0;
 
-  if (info.Length() >= 2 && info[1]->IsFunction()) {
-    callback = new Nan::Callback(info[1].As<v8::Function>());
+  if (info.Length() >= 2 && info[1].IsFunction()) {
+    callback = new Napi::FunctionReference(info[1].As<Napi::Function>());
     alertFunc = gpioAlertHandler;
   }
 
@@ -544,13 +566,14 @@ static NAN_METHOD(gpioSetAlertFunc) {
 }
 
 
-NAN_METHOD(gpioGlitchFilter) {
-  if (info.Length() < 2 || !info[0]->IsUint32() || !info[1]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioGlitchFilter", ""));
+Napi::Value gpioGlitchFilter(const Napi::CallbackInfo& info) {
+  if (info.Length() < 2 || !info[0].IsUint32() || !info[1].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioGlitchFilter", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned user_gpio = Nan::To<uint32_t>(info[0]).FromJust();
-  unsigned steady = Nan::To<uint32_t>(info[1]).FromJust();
+  unsigned user_gpio = info[0].As<Napi::Number>().Uint32Value();
+  unsigned steady = info[1].As<Napi::Number>().Uint32Value();
 
   int rc = gpioGlitchFilter(user_gpio, steady);
   if (rc < 0) {
@@ -564,77 +587,81 @@ NAN_METHOD(gpioGlitchFilter) {
 /* ------------------------------------------------------------------------ */
 
 
-NAN_METHOD(GpioReadBits_0_31) {
-  info.GetReturnValue().Set(gpioRead_Bits_0_31());
+Napi::Value GpioReadBits_0_31(const Napi::CallbackInfo& info) {
+  return gpioRead_Bits_0_31();
 }
 
 
-NAN_METHOD(GpioReadBits_32_53) {
-  info.GetReturnValue().Set(gpioRead_Bits_32_53());
+Napi::Value GpioReadBits_32_53(const Napi::CallbackInfo& info) {
+  return gpioRead_Bits_32_53();
 }
 
 
-NAN_METHOD(GpioWriteBitsSet_0_31) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "GpioWriteBitsSet_0_31", ""));
+Napi::Value GpioWriteBitsSet_0_31(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "GpioWriteBitsSet_0_31", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned bits = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned bits = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioWrite_Bits_0_31_Set(bits);
   if (rc < 0) {
     return ThrowPigpioError(rc, "GpioWriteBitsSet_0_31");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(GpioWriteBitsSet_32_53) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "GpioWriteBitsSet_32_53", ""));
+Napi::Value GpioWriteBitsSet_32_53(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "GpioWriteBitsSet_32_53", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned bits = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned bits = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioWrite_Bits_32_53_Set(bits);
   if (rc < 0) {
     return ThrowPigpioError(rc, "GpioWriteBitsSet_32_53");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(GpioWriteBitsClear_0_31) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "GpioWriteBitsClear_0_31", ""));
+Napi::Value GpioWriteBitsClear_0_31(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "GpioWriteBitsClear_0_31", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned bits = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned bits = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioWrite_Bits_0_31_Clear(bits);
   if (rc < 0) {
     return ThrowPigpioError(rc, "GpioWriteBitsClear_0_31");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(GpioWriteBitsClear_32_53) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "GpioWriteBitsClear_32_53", ""));
+Napi::Value GpioWriteBitsClear_32_53(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "GpioWriteBitsClear_32_53", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned bits = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned bits = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioWrite_Bits_32_53_Clear(bits);
   if (rc < 0) {
     return ThrowPigpioError(rc, "GpioWriteBitsClear_32_53");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
@@ -643,39 +670,41 @@ NAN_METHOD(GpioWriteBitsClear_32_53) {
 /* ------------------------------------------------------------------------ */
 
 
-NAN_METHOD(gpioNotifyOpen) {
+Napi::Value gpioNotifyOpen(const Napi::CallbackInfo& info) {
   int rc = gpioNotifyOpen();
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioNotifyOpen");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioNotifyOpenWithSize) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioNotifyOpenWithSize", ""));
+Napi::Value gpioNotifyOpenWithSize(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioNotifyOpenWithSize", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned bufSize = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned bufSize = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioNotifyOpenWithSize(bufSize);
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioNotifyOpen");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioNotifyBegin) {
-  if (info.Length() < 2 || !info[0]->IsUint32() || !info[1]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioNotifyBegin", ""));
+Napi::Value gpioNotifyBegin(const Napi::CallbackInfo& info) {
+  if (info.Length() < 2 || !info[0].IsUint32() || !info[1].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioNotifyBegin", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned handle = Nan::To<uint32_t>(info[0]).FromJust();
-  unsigned bits = Nan::To<uint32_t>(info[1]).FromJust();
+  unsigned handle = info[0].As<Napi::Number>().Uint32Value();
+  unsigned bits = info[1].As<Napi::Number>().Uint32Value();
 
   int rc = gpioNotifyBegin(handle, bits);
   if (rc < 0) {
@@ -684,12 +713,13 @@ NAN_METHOD(gpioNotifyBegin) {
 }
 
 
-NAN_METHOD(gpioNotifyPause) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioNotifyPause", ""));
+Napi::Value gpioNotifyPause(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioNotifyPause", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned handle = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned handle = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioNotifyPause(handle);
   if (rc < 0) {
@@ -698,12 +728,13 @@ NAN_METHOD(gpioNotifyPause) {
 }
 
 
-NAN_METHOD(gpioNotifyClose) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioNotifyClose", ""));
+Napi::Value gpioNotifyClose(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioNotifyClose", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned handle = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned handle = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioNotifyClose(handle);
   if (rc < 0) {
@@ -717,7 +748,7 @@ NAN_METHOD(gpioNotifyClose) {
 /* ------------------------------------------------------------------------ */
 
 
-NAN_METHOD(gpioWaveClear) {
+Napi::Value gpioWaveClear(const Napi::CallbackInfo& info) {
   int rc = gpioWaveClear();
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioWaveClear");
@@ -725,51 +756,54 @@ NAN_METHOD(gpioWaveClear) {
 }
 
 
-NAN_METHOD(gpioWaveAddNew) {
+Napi::Value gpioWaveAddNew(const Napi::CallbackInfo& info) {
   int rc = gpioWaveAddNew();
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioWaveAddNew");
   }
 }
 
-NAN_METHOD(gpioWaveAddGeneric) {
-  if (info.Length() < 1 || !info[0]->IsArray()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioWaveAddGeneric", ""));
+Napi::Value gpioWaveAddGeneric(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsArray()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioWaveAddGeneric", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
 
-  v8::Local<v8::Array> array = info[0].As<v8::Array>();
+  Napi::Array array = info[0].As<Napi::Array>();
   unsigned numPulses = array->Length();
 
   gpioPulse_t pulses[numPulses];
 
   for (unsigned i = 0; i < array->Length(); i++) {
-    if (Nan::Has(array, i).FromJust()) {
-      v8::Local<v8::Value> element = Nan::Get(array, i).ToLocalChecked();
+    if ((array).Has(i)) {
+      Napi::Value element = (array).Get(i);
 
-      if (!element->IsObject()) {
-        return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioWaveAddGeneric", "")); 
+      if (!element.IsObject()) {
+        Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioWaveAddGeneric", "")).ThrowAsJavaScriptException();
+        return env.Null(); 
       }
 
-      v8::Local<v8::Object> pulse = v8::Local<v8::Object>::Cast(element);
+      Napi::Object pulse = element.As<Napi::Object>();
 
-      v8::Local<v8::Value> _on =
-        Nan::Get(pulse, Nan::New<v8::String>("gpioOn").ToLocalChecked()).
+      Napi::Value _on =
+        (pulse).Get(Napi::String::New(env, "gpioOn")).
         ToLocalChecked();
-      v8::Local<v8::Value> _off =
-        Nan::Get(pulse, Nan::New<v8::String>("gpioOff").ToLocalChecked()).
+      Napi::Value _off =
+        (pulse).Get(Napi::String::New(env, "gpioOff")).
         ToLocalChecked();
-      v8::Local<v8::Value> _delay =
-        Nan::Get(pulse, Nan::New<v8::String>("usDelay").ToLocalChecked()).
+      Napi::Value _delay =
+        (pulse).Get(Napi::String::New(env, "usDelay")).
         ToLocalChecked();
 
       if (!_on->IsUint32() || !_off->IsUint32() || !_delay->IsUint32()){
-        return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioWaveAddGeneric", ""));
+        Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioWaveAddGeneric", "")).ThrowAsJavaScriptException();
+        return env.Null();
       }
 
-      uint32_t on = _on->Uint32Value(Nan::GetCurrentContext()).FromJust();
-      uint32_t off = _off->Uint32Value(Nan::GetCurrentContext()).FromJust();
-      uint32_t delay = _delay->Uint32Value(Nan::GetCurrentContext()).FromJust();
+      uint32_t on = _on->Uint32Value(Napi::GetCurrentContext());
+      uint32_t off = _off->Uint32Value(Napi::GetCurrentContext());
+      uint32_t delay = _delay->Uint32Value(Napi::GetCurrentContext());
 
       if (on > 0) {
         on = 1 << on;
@@ -789,26 +823,27 @@ NAN_METHOD(gpioWaveAddGeneric) {
     return ThrowPigpioError(rc, "gpioWaveAddGeneric");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioWaveCreate) {
+Napi::Value gpioWaveCreate(const Napi::CallbackInfo& info) {
   int rc = gpioWaveCreate();
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioWaveCreate");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioWaveDelete) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioWaveDelete", ""));
+Napi::Value gpioWaveDelete(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioWaveDelete", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned waveId = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned waveId = info[0].As<Napi::Number>().Uint32Value();
 
   int rc = gpioWaveDelete(waveId);
   if (rc < 0) {
@@ -817,30 +852,32 @@ NAN_METHOD(gpioWaveDelete) {
 }
 
 
-NAN_METHOD(gpioWaveTxSend) {
-  if (info.Length() < 2 || !info[0]->IsUint32() || !info[1]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioWaveTxSend", ""));
+Napi::Value gpioWaveTxSend(const Napi::CallbackInfo& info) {
+  if (info.Length() < 2 || !info[0].IsUint32() || !info[1].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioWaveTxSend", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned waveId = Nan::To<uint32_t>(info[0]).FromJust();
-  unsigned waveMode = Nan::To<uint32_t>(info[1]).FromJust();
+  unsigned waveId = info[0].As<Napi::Number>().Uint32Value();
+  unsigned waveMode = info[1].As<Napi::Number>().Uint32Value();
 
   int rc = gpioWaveTxSend(waveId, waveMode);
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioWaveTxSend");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioWaveChain) {
-  if (info.Length() < 2 || info[0]->IsNull() || !info[1]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioWaveChain", ""));
+Napi::Value gpioWaveChain(const Napi::CallbackInfo& info) {
+  if (info.Length() < 2 || info[0].IsNull() || !info[1].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioWaveChain", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  char * buf = node::Buffer::Data(info[0]);
-  unsigned bufSize = Nan::To<uint32_t>(info[1]).FromJust();
+  char * buf = info[0].As<Napi::Buffer<char>>().Data();
+  unsigned bufSize = info[1].As<Napi::Number>().Uint32Value();
 
   int rc = gpioWaveChain(buf, bufSize);
   if (rc < 0) {
@@ -849,23 +886,23 @@ NAN_METHOD(gpioWaveChain) {
 }
 
 
-NAN_METHOD(gpioWaveTxAt) {
+Napi::Value gpioWaveTxAt(const Napi::CallbackInfo& info) {
   int rc = gpioWaveTxAt();
   if (rc >= PI_WAVE_NOT_FOUND) {
     return ThrowPigpioError(rc, "gpioWaveTxAt");
   }
 
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioWaveTxBusy) {
+Napi::Value gpioWaveTxBusy(const Napi::CallbackInfo& info) {
   int rc = gpioWaveTxBusy();
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioWaveTxStop) {
+Napi::Value gpioWaveTxStop(const Napi::CallbackInfo& info) {
   int rc = gpioWaveTxStop();
   if (rc < 0) {
     return ThrowPigpioError(rc, "gpioWaveTxStop");
@@ -873,57 +910,57 @@ NAN_METHOD(gpioWaveTxStop) {
 }
 
 
-NAN_METHOD(gpioWaveGetMicros) {
+Napi::Value gpioWaveGetMicros(const Napi::CallbackInfo& info) {
   int rc = gpioWaveGetMicros();
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioWaveGetHighMicros) {
+Napi::Value gpioWaveGetHighMicros(const Napi::CallbackInfo& info) {
   int rc = gpioWaveGetHighMicros();
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioWaveGetMaxMicros) {
+Napi::Value gpioWaveGetMaxMicros(const Napi::CallbackInfo& info) {
   int rc = gpioWaveGetMaxMicros();
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioWaveGetPulses) {
+Napi::Value gpioWaveGetPulses(const Napi::CallbackInfo& info) {
   int rc = gpioWaveGetPulses();
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioWaveGetHighPulses) {
+Napi::Value gpioWaveGetHighPulses(const Napi::CallbackInfo& info) {
   int rc = gpioWaveGetHighPulses();
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioWaveGetMaxPulses) {
+Napi::Value gpioWaveGetMaxPulses(const Napi::CallbackInfo& info) {
   int rc = gpioWaveGetMaxPulses();
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioWaveGetCbs) {
+Napi::Value gpioWaveGetCbs(const Napi::CallbackInfo& info) {
   int rc = gpioWaveGetCbs();
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioWaveGetHighCbs) {
+Napi::Value gpioWaveGetHighCbs(const Napi::CallbackInfo& info) {
   int rc = gpioWaveGetHighCbs();
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
-NAN_METHOD(gpioWaveGetMaxCbs) {
+Napi::Value gpioWaveGetMaxCbs(const Napi::CallbackInfo& info) {
   int rc = gpioWaveGetMaxCbs();
-  info.GetReturnValue().Set(rc);
+  return rc;
 }
 
 
@@ -932,55 +969,55 @@ NAN_METHOD(gpioWaveGetMaxCbs) {
 /* ------------------------------------------------------------------------ */
 
 
-NAN_METHOD(gpioCfgClock) {
-  if (info.Length() < 2 || !info[0]->IsUint32() || !info[1]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioCfgClock", ""));
+Napi::Value gpioCfgClock(const Napi::CallbackInfo& info) {
+  if (info.Length() < 2 || !info[0].IsUint32() || !info[1].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioCfgClock", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned cfgMicros = Nan::To<uint32_t>(info[0]).FromJust();
-  unsigned cfgPeripheral = Nan::To<uint32_t>(info[1]).FromJust();
+  unsigned cfgMicros = info[0].As<Napi::Number>().Uint32Value();
+  unsigned cfgPeripheral = info[1].As<Napi::Number>().Uint32Value();
   unsigned cfgSource = 0;
 
   gpioCfgClock(cfgMicros, cfgPeripheral, cfgSource);
 }
 
 
-NAN_METHOD(gpioCfgSocketPort) {
-  if (info.Length() < 1 || !info[0]->IsUint32()) {
-    return Nan::ThrowError(Nan::ErrnoException(EINVAL, "gpioCfgSocketPort", ""));
+Napi::Value gpioCfgSocketPort(const Napi::CallbackInfo& info) {
+  if (info.Length() < 1 || !info[0].IsUint32()) {
+    Napi::Error::New(env, Napi::ErrnoException(EINVAL, "gpioCfgSocketPort", "")).ThrowAsJavaScriptException();
+    return env.Null();
   }
 
-  unsigned cfgPort = Nan::To<uint32_t>(info[0]).FromJust();
+  unsigned cfgPort = info[0].As<Napi::Number>().Uint32Value();
 
   gpioCfgSocketPort(cfgPort);
 }
 
 
 /*static void SetConst(
-  Nan::ADDON_REGISTER_FUNCTION_ARGS_TYPE target,
+  Napi::Env& env, Napi::Object& target,
   const char* name,
   int value
 ) {
-  Nan::Set(target,
-    Nan::New<v8::String>(name).ToLocalChecked(),
-    Nan::New<v8::Integer>(value)
+  (target).Set(Napi::String::New(env, name),
+    Napi::Number::New(env, value)
   );
 }*/
 
 
 static void SetFunction(
-  Nan::ADDON_REGISTER_FUNCTION_ARGS_TYPE target,
+  Napi::Env& env, Napi::Object& target,
   const char* name,
-  Nan::FunctionCallback callback
+  Napi::FunctionCallback callback
 ) {
-  Nan::Set(target,
-    Nan::New(name).ToLocalChecked(),
-    Nan::GetFunction(Nan::New<v8::FunctionTemplate>(callback)).ToLocalChecked()
+  (target).Set(Napi::New(env, name),
+    Napi::GetFunction(Napi::Function::New(env, callback))
   );
 }
 
 
-NAN_MODULE_INIT(InitAll) {
+Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
   uv_sem_init(&sem_g, 1);
 
   /* mode constants */
@@ -1091,4 +1128,4 @@ NAN_MODULE_INIT(InitAll) {
   gpioAlert_g = new GpioAlert_t[PI_MAX_USER_GPIO + 1];
 }
 
-NODE_MODULE(pigpio, InitAll)
+NODE_API_MODULE(pigpio, InitAll)

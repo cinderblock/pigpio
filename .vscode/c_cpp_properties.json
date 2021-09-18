@@ -1,0 +1,15 @@
+
+{
+  "configurations": [
+    {
+      "name": "node-gyp N-API",
+      "includePath": [
+        "${workspaceFolder}/node_modules/node-addon-api",
+        "${workspaceFolder}/dev",
+        "${config:local.mingw32.mainDir}/include",
+        "${config:local.node-gyp.node-cache}/include/node"
+      ]
+    }
+  ],
+  "version": 4
+}
