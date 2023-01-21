@@ -183,7 +183,7 @@ clock defaults to PCM but can be overridden by invoking the
 [configureClock](https://github.com/fivdi/pigpio/blob/master/doc/configuration.md#configureclockmicroseconds-peripheral)
 function.
 
-The actual number of steps bteween off and fully on is the integral part of 250
+The actual number of steps between off and fully on is the integral part of 250
 million divided by frequency (375 million divided by frequency for the
 BCM2711).
 
