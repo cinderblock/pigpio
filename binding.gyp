@@ -3,8 +3,6 @@
     "target_name": "pigpio",
     "conditions": [[
       'OS == "linux"', {
-        "conditions": [[
-          '"<!((which pigpiod 2>/dev/null) || echo not_found)" != "not_found"', {
             "include_dirs" : [
               "<!(node -e \"require('nan')\")"
             ],
@@ -24,8 +22,6 @@
                 ]
               }]
             ]
-          }]
-        ]
       }]
     ]
   }]
